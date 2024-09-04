@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # PostgreSQL instance for user-service
+  user-postgres-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notes_db
+    volumes:
+      - note_postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
+
+  # PostgreSQL instance for task-service
+  task-postgres-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tasks_db
+    volumes:
+      - task_postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
+
+  # user-service configuration
+  user-service:
+    build:
+      context: ./user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_R2DBC_URL: r2dbc:postgresql://user-postgres-db:5432/notes_db
+      SPRING_R2DBC_USERNAME: postgres
+      SPRING_R2DBC_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - user-postgres-db
+      - eureka-server
+    networks:
+      - microservice-network
+
+  # task-service configuration
+  task-service:
+    build:
+      context: ./task-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_R2DBC_URL: r2dbc:postgresql://task-postgres-db:5432/tasks_db
+      SPRING_R2DBC_USERNAME: postgres
+      SPRING_R2DBC_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - task-postgres-db
+      - eureka-server
+    networks:
+      - microservice-network
+
+  # eureka-server configuration
+  eureka-server:
+    build:
+      context: ./eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - microservice-network
+
+  # gateway-service configuration
+  gateway-service:
+    build:
+      context: ./gateway-service
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+      - user-service
+      - task-service
+    networks:
+      - microservice-network
+
+networks:
+  microservice-network:
+    driver: bridge
+
+volumes:
+  note_postgres_data:
+  task_postgres_data:
